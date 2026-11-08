@@ -1,0 +1,37 @@
+# запуск из этой папки: docker compose up -d --build
+# имя проекта задано явно, чтобы тома с данными назывались одинаково откуда бы ни запускали
+name: botmax
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    ports:
+      - "127.0.0.1:18765:18765"
+      # Веб-интерфейс (кабинеты, метрики). С HTTPS через caddy этот порт можно не открывать наружу.
+      - "${WEB_PUBLISH:-8080}:8080"
+    volumes:
+      - bot-data:/app/data
+
+  # HTTPS для веб-кабинета: docker compose --profile https up -d
+  # Нужен домен в WEB_DOMAIN (подойдёт бесплатный вида 185-1-2-3.sslip.io) и открытые порты 80 и 443.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${WEB_DOMAIN:-localhost} --to bot:8080
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - bot
+
+volumes:
+  bot-data:
+  caddy-data:
